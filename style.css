@@ -1,0 +1,196 @@
+/* styles.css */
+
+@import url('https://unpkg.com/@catppuccin/palette/css/catppuccin.css');
+
+
+body {
+  font-family: 'IBM Plex Sans';
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  color: var(--ctp-mocha-text);
+  background: var(--ctp-frappe-base);
+  background-color: var(--ctp-frappe-base);
+}
+
+
+header {
+  background-color: var(--ctp-frappe-base);
+  color: var(--ctp-mocha-yellow);
+  padding: 15px;
+  text-align: center;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 10px auto;
+  padding: 10px;
+  background-color: var(--ctp-frappe-base);
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+}
+
+.container>div {
+  margin-left: 10px;
+  margin-right: 10px;
+}
+
+.columnar>div {
+  margin-bottom: 10px;
+}
+
+h1 {
+  color: var(--ctp-frappe-yellow);
+}
+
+input {
+  background-color: var(--ctp-mocha-crust);
+  color: var(--ctp-mocha-text);
+  border-style: none;
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 20px;
+  box-sizing: border-box;
+}
+
+fieldset {
+  background-color: var(--ctp-mocha-crust);
+  border-color: var(--ctp-mocha-surface2);
+}
+
+select {
+  background-color: var(--ctp-mocha-crust);
+  color: var(--ctp-mocha-subtext0);
+  border: none;
+}
+
+input[type="checkbox"] {
+  margin: 0.4rem;
+  padding: 3px;
+  margin-bottom: 2px;
+  box-sizing: border-box;
+  width: fit-content;
+}
+
+input:checked {
+  accent-color: var(--ctp-mocha-surface2);
+}
+
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 15px;
+  background: var(--ctp-mocha-crust);
+  outline: none;
+  -webkit-transition: .2s;
+  transition: opacity .2s;
+}
+
+
+/* The slider handle (use -webkit- (Chrome, Opera, Safari, Edge) and -moz- (Firefox) to override default look) */
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  /* Override default look */
+  appearance: none;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: var(--ctp-mocha-surface0);
+  border-color: var(--ctp-mocha-overlay0);
+  cursor: pointer;
+  /* Cursor on hover */
+}
+
+.slider::-moz-range-thumb {
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: var(--ctp-mocha-surface0);
+  border-color: var(--ctp-mocha-overlay0);
+  cursor: pointer;
+  /* Cursor on hover */
+}
+
+datalist {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  writing-mode: horizontal-tb;
+  width: 200px;
+}
+
+option {
+  padding: 0;
+}
+
+input[type="range"] {
+  width: 200px;
+  margin: 0;
+}
+
+.tooltip {
+  background-color: var(--ctp-mocha-overlay0);
+  color: var(--ctp-mocha-text);
+  border: solid;
+  border-color: var(--ctp-mocha-overlay1);
+  border-width: 1px;
+  border-radius: 5px;
+  padding: 10px;
+}
+
+#cardSearchID {
+  margin-bottom: 0px;
+}
+
+.suggestions {
+  background: var(--ctp-frappe-crust);
+  border-color: var(--ctp-mocha-overlay0);
+  overflow-y: auto;
+  margin-bottom: 20px;
+}
+
+.autocomplete-item:hover {
+  color: var(--ctp-frappe-rosewater);
+}
+
+
+dt:before {
+  content: "";
+  display: block;
+}
+
+dt,
+dd {
+  display: inline;
+}
+
+dt::after {
+  content: ": ";
+}
+
+#priceID::after {
+  content: "€"
+}
+
+.infoBox {
+  margin: 40px;
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+.infoBoxBox {
+  margin-top: 0px;
+  margin-left: 20px;
+  background: var(--ctp-frappe-crust);
+  border-color: var(--ctp-mocha-surface1);
+}
+.tree-children {
+    margin-left: 12px;
+    padding-left: 12px;
+    border-left: 1px solid #ccc;
+}
