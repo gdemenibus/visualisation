@@ -93,33 +93,67 @@ function buildSampleSelector() {
     const grouped = d3.group(Array.from(sampleData.values()), d => d.label);
 
     for (const [label, samples] of grouped) {
-        const details = document.createElement("details");
-        details.open = true;
+        const labelDetails = document.createElement("details");
+        labelDetails.open = true;
 
-        const summary = document.createElement("summary");
-        summary.textContent = label;
-        details.appendChild(summary);
+        const labelSummary = document.createElement("summary");
+        labelSummary.textContent = label;
+        labelDetails.appendChild(labelSummary);
 
-        const children = document.createElement("div");
-        children.className = "tree-children";
+        const labelChildren = document.createElement("div");
+        labelChildren.className = "tree-children";
 
         for (const s of samples) {
-            const lbl = document.createElement("label");
-            const cb = document.createElement("input");
-            cb.type = "checkbox";
-            cb.checked = true;
-            cb.value = `${s.label}/${s.sample}`;
-            cb.addEventListener("change", updateChart);
-            lbl.append(cb, ` ${s.sample} (n=${s.channels.length})`);
-            children.appendChild(lbl);
-            children.appendChild(document.createElement("br"));
+            const sampleDetails = document.createElement("details");
+            sampleDetails.open = false;
+
+            const sampleSummary = document.createElement("summary");
+            const sampleCb = document.createElement("input");
+            sampleCb.type = "checkbox";
+            sampleCb.checked = true;
+            sampleCb.value = `${s.label}/${s.sample}`;
+            sampleCb.className = "sample-checkbox";
+            sampleCb.addEventListener("change", (e) => {
+                // Toggle all file checkboxes under this sample
+                const fileCbs = sampleDetails.querySelectorAll('.file-checkbox');
+                fileCbs.forEach(fcb => { fcb.checked = e.target.checked; });
+                onSelectionChange();
+            });
+            sampleSummary.appendChild(sampleCb);
+            sampleSummary.append(` ${s.sample} (n=${s.channels.length})`);
+            sampleDetails.appendChild(sampleSummary);
+
+            const fileChildren = document.createElement("div");
+            fileChildren.className = "tree-children";
+
+            for (let i = 0; i < s.files.length; i++) {
+                const fileLbl = document.createElement("label");
+                const fileCb = document.createElement("input");
+                fileCb.type = "checkbox";
+                fileCb.checked = true;
+                fileCb.className = "file-checkbox";
+                fileCb.dataset.sample = `${s.label}/${s.sample}`;
+                fileCb.dataset.fileIndex = i;
+                fileCb.addEventListener("change", onSelectionChange);
+                fileLbl.append(fileCb, ` ${s.files[i].name}`);
+                fileChildren.appendChild(fileLbl);
+                fileChildren.appendChild(document.createElement("br"));
+            }
+
+            sampleDetails.appendChild(fileChildren);
+            labelChildren.appendChild(sampleDetails);
         }
 
-        details.appendChild(children);
-        container.appendChild(details);
+        labelDetails.appendChild(labelChildren);
+        container.appendChild(labelDetails);
     }
 
     updateChart();
+}
+
+function onSelectionChange() {
+    updateChart();
+    if (detailContainer.style.display !== "none") updateDetailChart();
 }
 
 // --- D3 Bar Chart with error bars ---
@@ -162,23 +196,37 @@ function getGroupMode() {
     return document.querySelector('input[name="group-mode"]:checked')?.value || "sample";
 }
 
-function computeCorrelationsForSample(sampleEntry) {
+function getEnabledFileIndices(sampleKey) {
+    const fileCbs = document.querySelectorAll(`.file-checkbox[data-sample="${sampleKey}"]`);
+    const indices = [];
+    fileCbs.forEach(cb => {
+        if (cb.checked) indices.push(parseInt(cb.dataset.fileIndex));
+    });
+    return indices;
+}
+
+function computeCorrelationsForSample(sampleEntry, sampleKey) {
     const { ch1: thresh1, ch2: thresh2 } = getFilterThresholds();
-    return sampleEntry.channels.map(({ ch1, ch2 }) =>
-        computeFilteredCorrelation(ch1, ch2, thresh1, thresh2)
-    ).filter(r => !isNaN(r));
+    const enabledIndices = getEnabledFileIndices(sampleKey);
+    return enabledIndices.map(i => {
+        const { ch1, ch2 } = sampleEntry.channels[i];
+        return computeFilteredCorrelation(ch1, ch2, thresh1, thresh2);
+    }).filter(r => !isNaN(r));
+}
+
+function getSelectedSampleKeys() {
+    const cbs = document.querySelectorAll('.sample-checkbox:checked');
+    return Array.from(cbs).map(cb => cb.value);
 }
 
 function getSelectedData() {
-    const checkboxes = document.querySelectorAll('#file-selector input[type="checkbox"]:checked');
-    const keys = Array.from(checkboxes).map(cb => cb.value);
-
+    const keys = getSelectedSampleKeys();
     const mode = getGroupMode();
 
     if (mode === "sample") {
         return keys.map(k => {
             const d = sampleData.get(k);
-            const corrs = computeCorrelationsForSample(d);
+            const corrs = computeCorrelationsForSample(d, k);
             const mean = d3.mean(corrs) || 0;
             const std = d3.deviation(corrs) || 0;
             return { key: k, label: d.label, sample: d.sample, mean, std, n: corrs.length };
@@ -189,7 +237,7 @@ function getSelectedData() {
     for (const k of keys) {
         const d = sampleData.get(k);
         if (!labelMap.has(d.label)) labelMap.set(d.label, []);
-        labelMap.get(d.label).push(...computeCorrelationsForSample(d));
+        labelMap.get(d.label).push(...computeCorrelationsForSample(d, k));
     }
     return Array.from(labelMap, ([label, corrs]) => ({
         key: label,
@@ -362,24 +410,25 @@ function updateDetailChart() {
     const { ch1: thresh1, ch2: thresh2 } = getFilterThresholds();
     const mode = getGroupMode();
 
-    // Collect files for this key
+    // Collect enabled files for this key
     let files = [];
     let channelsList = [];
     if (mode === "sample") {
         const entry = sampleData.get(detailSelectedKey);
         if (!entry) return;
-        files = entry.files;
-        channelsList = entry.channels;
+        const indices = getEnabledFileIndices(detailSelectedKey);
+        files = indices.map(i => entry.files[i]);
+        channelsList = indices.map(i => entry.channels[i]);
         detailTitle.textContent = `Files in ${detailSelectedKey}`;
     } else {
-        // Label mode: collect from all checked samples with this label
-        const checkboxes = document.querySelectorAll('#file-selector input[type="checkbox"]:checked');
-        const checkedKeys = Array.from(checkboxes).map(cb => cb.value);
-        for (const k of checkedKeys) {
+        // Label mode: collect enabled files from checked samples with this label
+        const keys = getSelectedSampleKeys();
+        for (const k of keys) {
             const d = sampleData.get(k);
             if (d && d.label === detailSelectedKey) {
-                files.push(...d.files);
-                channelsList.push(...d.channels);
+                const indices = getEnabledFileIndices(k);
+                files.push(...indices.map(i => d.files[i]));
+                channelsList.push(...indices.map(i => d.channels[i]));
             }
         }
         detailTitle.textContent = `Files in ${detailSelectedKey}`;
@@ -487,14 +536,19 @@ document.getElementById("next-btn").addEventListener("click", () => {
 function getFilesForKey(key) {
     const mode = getGroupMode();
     if (mode === "sample") {
-        return sampleData.get(key)?.files || [];
+        const entry = sampleData.get(key);
+        if (!entry) return [];
+        const indices = getEnabledFileIndices(key);
+        return indices.map(i => entry.files[i]);
     }
-    const checkboxes = document.querySelectorAll('#file-selector input[type="checkbox"]:checked');
-    const checkedKeys = Array.from(checkboxes).map(cb => cb.value);
+    const keys = getSelectedSampleKeys();
     const files = [];
-    for (const k of checkedKeys) {
+    for (const k of keys) {
         const d = sampleData.get(k);
-        if (d && d.label === key) files.push(...d.files);
+        if (d && d.label === key) {
+            const indices = getEnabledFileIndices(k);
+            files.push(...indices.map(i => d.files[i]));
+        }
     }
     return files;
 }
