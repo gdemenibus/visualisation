@@ -8,6 +8,8 @@
 </head>
 
 
+<div id="chart-tooltip" class="tooltip" style="display:none; position:absolute; pointer-events:none;"></div>
+
 <div class="container">
 <!-- The first column, where the restrictions on cards an be set -->
     <div class="columnar">
@@ -33,6 +35,11 @@
     </div>
 
 
+</div>
+
+<div id="detail-chart-container" style="display:none;">
+    <h3 id="detail-chart-title"></h3>
+    <svg id="detail-chart"></svg>
 </div>
 
 <div id="image-viewer" style="display:none;">

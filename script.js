@@ -156,6 +156,8 @@ svg.append("text")
     .attr("font-size", "12px")
     .text("Pearson r");
 
+const tooltip = document.getElementById("chart-tooltip");
+
 function getGroupMode() {
     return document.querySelector('input[name="group-mode"]:checked')?.value || "sample";
 }
@@ -239,7 +241,22 @@ function updateChart() {
         .attr("fill", d => color(d.label))
         .attr("opacity", 0.8)
         .style("cursor", "pointer")
-        .on("click", (event, d) => openViewer(d.key))
+        .on("click", (event, d) => { showDetailChart(d.key); openViewer(d.key); })
+        .on("mouseenter", (event, d) => {
+            tooltip.style.display = "block";
+            tooltip.innerHTML = `<strong>${d.key}</strong><br>` +
+                `Mean: ${d.mean.toFixed(4)}<br>` +
+                `Std: ±${d.std.toFixed(4)}<br>` +
+                `Range: [${(d.mean - d.std).toFixed(4)}, ${(d.mean + d.std).toFixed(4)}]<br>` +
+                `n = ${d.n}`;
+        })
+        .on("mousemove", (event) => {
+            tooltip.style.left = (event.pageX + 12) + "px";
+            tooltip.style.top = (event.pageY - 10) + "px";
+        })
+        .on("mouseleave", () => {
+            tooltip.style.display = "none";
+        })
       .merge(bars).transition()
         .attr("x", d => x(d.key))
         .attr("width", x.bandwidth())
@@ -301,6 +318,137 @@ function updateChart() {
             .attr("font-size", "11px")
             .text(l);
     });
+}
+
+// --- Detail Chart (per-file breakdown) ---
+
+const detailContainer = document.getElementById("detail-chart-container");
+const detailTitle = document.getElementById("detail-chart-title");
+const detailMargin = { top: 30, right: 20, bottom: 80, left: 60 };
+const detailWidth = 900;
+const detailHeight = 350;
+
+const detailSvg = d3.select("#detail-chart")
+    .attr("width", detailWidth)
+    .attr("height", detailHeight);
+
+const detailG = detailSvg.append("g")
+    .attr("transform", `translate(${detailMargin.left},${detailMargin.top})`);
+
+const detailXAxisG = detailG.append("g")
+    .attr("transform", `translate(0,${detailHeight - detailMargin.top - detailMargin.bottom})`);
+const detailYAxisG = detailG.append("g");
+
+detailSvg.append("text")
+    .attr("transform", "rotate(-90)")
+    .attr("x", -(detailHeight / 2))
+    .attr("y", 16)
+    .attr("text-anchor", "middle")
+    .attr("fill", "var(--ctp-mocha-text)")
+    .attr("font-size", "12px")
+    .text("Pearson r");
+
+let detailSelectedKey = null;
+
+function showDetailChart(key) {
+    detailSelectedKey = key;
+    detailContainer.style.display = "block";
+    updateDetailChart();
+}
+
+function updateDetailChart() {
+    if (!detailSelectedKey) return;
+
+    const { ch1: thresh1, ch2: thresh2 } = getFilterThresholds();
+    const mode = getGroupMode();
+
+    // Collect files for this key
+    let files = [];
+    let channelsList = [];
+    if (mode === "sample") {
+        const entry = sampleData.get(detailSelectedKey);
+        if (!entry) return;
+        files = entry.files;
+        channelsList = entry.channels;
+        detailTitle.textContent = `Files in ${detailSelectedKey}`;
+    } else {
+        // Label mode: collect from all checked samples with this label
+        const checkboxes = document.querySelectorAll('#file-selector input[type="checkbox"]:checked');
+        const checkedKeys = Array.from(checkboxes).map(cb => cb.value);
+        for (const k of checkedKeys) {
+            const d = sampleData.get(k);
+            if (d && d.label === detailSelectedKey) {
+                files.push(...d.files);
+                channelsList.push(...d.channels);
+            }
+        }
+        detailTitle.textContent = `Files in ${detailSelectedKey}`;
+    }
+
+    // Compute per-file correlation
+    const data = files.map((file, i) => {
+        const { ch1, ch2 } = channelsList[i];
+        const r = computeFilteredCorrelation(ch1, ch2, thresh1, thresh2);
+        return { key: file.name, filename: file.name, r: isNaN(r) ? 0 : r };
+    });
+
+    const innerW = detailWidth - detailMargin.left - detailMargin.right;
+    const innerH = detailHeight - detailMargin.top - detailMargin.bottom;
+
+    const x = d3.scaleBand()
+        .domain(data.map(d => d.key))
+        .range([0, innerW])
+        .padding(0.1);
+
+    const yMax = d3.max(data, d => d.r) || 1;
+    const yMin = d3.min(data, d => d.r) || 0;
+    const y = d3.scaleLinear()
+        .domain([Math.min(0, yMin - 0.05), Math.max(0.5, yMax + 0.05)])
+        .range([innerH, 0]);
+
+    detailXAxisG.call(
+        d3.axisBottom(x).tickFormat(d => d.replace(/\.npy$/, ''))
+    ).selectAll("text")
+        .attr("transform", "rotate(-45)")
+        .style("text-anchor", "end")
+        .style("font-size", "9px");
+
+    detailYAxisG.call(d3.axisLeft(y));
+
+    // Bars
+    const bars = detailG.selectAll(".detail-bar").data(data, d => d.key);
+    bars.enter().append("rect")
+        .attr("class", "detail-bar")
+        .attr("fill", "var(--ctp-mocha-blue, #89b4fa)")
+        .attr("opacity", 0.8)
+        .style("cursor", "pointer")
+        .on("mouseenter", (event, d) => {
+            tooltip.style.display = "block";
+            tooltip.innerHTML = `<strong>${d.filename}</strong><br>r = ${d.r.toFixed(4)}`;
+        })
+        .on("mousemove", (event) => {
+            tooltip.style.left = (event.pageX + 12) + "px";
+            tooltip.style.top = (event.pageY - 10) + "px";
+        })
+        .on("mouseleave", () => { tooltip.style.display = "none"; })
+        .on("click", (event, d) => {
+            // Open viewer at this specific file
+            const allFiles = getFilesForKey(detailSelectedKey);
+            const idx = allFiles.findIndex(f => f.name === d.filename);
+            if (idx >= 0) {
+                viewerState.title = detailSelectedKey;
+                viewerState.files = allFiles;
+                viewerState.index = idx;
+                viewerEl.style.display = "block";
+                renderViewerImage();
+            }
+        })
+      .merge(bars).transition()
+        .attr("x", d => x(d.key))
+        .attr("width", x.bandwidth())
+        .attr("y", d => y(Math.max(0, d.r)))
+        .attr("height", d => Math.abs(y(0) - y(d.r)));
+    bars.exit().remove();
 }
 
 // --- Image Viewer ---
@@ -519,6 +667,7 @@ function onFilterChange() {
     clearTimeout(filterTimeout);
     filterTimeout = setTimeout(() => {
         updateChart();
+        if (detailContainer.style.display !== "none") updateDetailChart();
         if (viewerEl.style.display !== "none") renderViewerImage();
     }, 150);
 }

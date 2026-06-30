@@ -141,6 +141,9 @@ input[type="range"] {
   border-width: 1px;
   border-radius: 5px;
   padding: 10px;
+  z-index: 100;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 #cardSearchID {
@@ -269,6 +272,17 @@ dt::after {
     width: 100%;
     height: auto;
     border: 1px solid var(--ctp-mocha-surface2);
+}
+
+#detail-chart-container {
+    max-width: 1200px;
+    margin: 20px auto;
+    padding: 10px;
+}
+
+#detail-chart-container h3 {
+    margin: 0 0 8px 0;
+    color: var(--ctp-mocha-text);
 }
 
 #scatter-container {
