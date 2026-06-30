@@ -318,11 +318,11 @@ const canvases = [
     document.getElementById("canvas-ch4"),
 ];
 
-// Channel colors: ch1=red, ch2=green, ch3=blue, ch4=white
+// Channel colors: ch1=blue, ch2=green, ch3=red, ch4=white
 const channelColors = [
-    [1, 0, 0],
-    [0, 1, 0],
     [0, 0, 1],
+    [0, 1, 0],
+    [1, 0, 0],
     [1, 1, 1],
 ];
 
