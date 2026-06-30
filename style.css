@@ -195,8 +195,19 @@ dt::after {
     border-left: 1px solid #ccc;
 }
 
+.view-toggle {
+    margin-bottom: 10px;
+    display: flex;
+    gap: 16px;
+}
+
+.view-toggle label {
+    cursor: pointer;
+}
+
 #image-viewer {
-    margin-top: 20px;
+    max-width: 1200px;
+    margin: 20px auto;
     padding: 10px;
 }
 
@@ -226,8 +237,19 @@ dt::after {
     background: var(--ctp-mocha-surface1);
 }
 
-#viewer-canvas {
-    max-width: 100%;
+.channel-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.channel-panel h4 {
+    margin: 0 0 4px 0;
+    color: var(--ctp-mocha-subtext0);
+}
+
+.channel-panel canvas {
+    width: 100%;
     height: auto;
     border: 1px solid var(--ctp-mocha-surface2);
 }

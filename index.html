@@ -16,17 +16,26 @@
         <div id="file-selector"></div>
     </div>
     <div id= "plot-container">
-
-    </div>
-
-    <div id="image-viewer" style="display:none;">
-        <h3 id="viewer-title"></h3>
-        <div class="viewer-controls">
-            <button id="prev-btn">&#9664; Prev</button>
-            <span id="viewer-index"></span>
-            <button id="next-btn">Next &#9654;</button>
+        <div class="view-toggle">
+            <label><input type="radio" name="group-mode" value="sample" checked /> By Sample</label>
+            <label><input type="radio" name="group-mode" value="label" /> By Label</label>
         </div>
-        <canvas id="viewer-canvas"></canvas>
     </div>
 
+
+</div>
+
+<div id="image-viewer" style="display:none;">
+    <h3 id="viewer-title"></h3>
+    <div class="viewer-controls">
+        <button id="prev-btn">&#9664; Prev</button>
+        <span id="viewer-index"></span>
+        <button id="next-btn">Next &#9654;</button>
+    </div>
+    <div class="channel-grid">
+        <div class="channel-panel"><h4>Channel 1</h4><canvas id="canvas-ch1"></canvas></div>
+        <div class="channel-panel"><h4>Channel 2</h4><canvas id="canvas-ch2"></canvas></div>
+        <div class="channel-panel"><h4>Channel 3</h4><canvas id="canvas-ch3"></canvas></div>
+        <div class="channel-panel"><h4>Channel 4</h4><canvas id="canvas-ch4"></canvas></div>
+    </div>
 </div>
