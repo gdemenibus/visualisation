@@ -1,23 +1,24 @@
 <!DOCTYPE html>
+
 <head>
-  <meta charset="UTF-8">
-  <title>Data Analysis Alex Thesis</title>
-  <link href='https://fonts.googleapis.com/css?family=IBM Plex Sans' rel='stylesheet'>
-  <link rel="stylesheet" href="style.css">
-  <script type="module" src="script.js"> </script>
+    <meta charset="UTF-8">
+    <title>Data Analysis Alex Thesis</title>
+    <link href='https://fonts.googleapis.com/css?family=IBM Plex Sans' rel='stylesheet'>
+    <link rel="stylesheet" href="style.css">
+    <script type="module" src="script.js"> </script>
 </head>
 
 
 <div id="chart-tooltip" class="tooltip" style="display:none; position:absolute; pointer-events:none;"></div>
 
 <div class="container">
-<!-- The first column, where the restrictions on cards an be set -->
+    <!-- The first column, where the restrictions on cards an be set -->
     <div class="columnar">
         <input type="file" id="file-picker" name="fileList" webkitdirectory multiple />
         <ul id="listing"></ul>
         <div id="file-selector"></div>
     </div>
-    <div id= "plot-container">
+    <div id="plot-container">
         <div class="view-toggle">
             <label><input type="radio" name="group-mode" value="sample" checked /> By Sample</label>
             <label><input type="radio" name="group-mode" value="label" /> By Label</label>
@@ -48,13 +49,22 @@
         <button id="prev-btn">&#9664; Prev</button>
         <span id="viewer-index"></span>
         <button id="next-btn">Next &#9654;</button>
-        <label class="filter-highlight-toggle"><input type="checkbox" id="show-filtered" /> Highlight filtered pixels</label>
+        <label class="filter-highlight-toggle"><input type="checkbox" id="show-filtered" /> Highlight filtered
+            pixels</label>
     </div>
     <div class="channel-grid">
-        <div class="channel-panel"><h4>Channel 1</h4><canvas id="canvas-ch1"></canvas></div>
-        <div class="channel-panel"><h4>Channel 2</h4><canvas id="canvas-ch2"></canvas></div>
-        <div class="channel-panel"><h4>Channel 3</h4><canvas id="canvas-ch3"></canvas></div>
-        <div class="channel-panel"><h4>Channel 4</h4><canvas id="canvas-ch4"></canvas></div>
+        <div class="channel-panel">
+            <h4>Channel 0</h4><canvas id="canvas-ch1"></canvas>
+        </div>
+        <div class="channel-panel">
+            <h4>Channel 1</h4><canvas id="canvas-ch2"></canvas>
+        </div>
+        <div class="channel-panel">
+            <h4>Channel 2</h4><canvas id="canvas-ch3"></canvas>
+        </div>
+        <div class="channel-panel">
+            <h4>Channel 3</h4><canvas id="canvas-ch4"></canvas>
+        </div>
     </div>
     <div id="scatter-container">
         <h4>Ch1 vs Ch2 Scatter</h4>
