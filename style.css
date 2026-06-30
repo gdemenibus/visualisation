@@ -194,3 +194,40 @@ dt::after {
     padding-left: 12px;
     border-left: 1px solid #ccc;
 }
+
+#image-viewer {
+    margin-top: 20px;
+    padding: 10px;
+}
+
+#image-viewer h3 {
+    margin: 0 0 8px 0;
+    color: var(--ctp-mocha-text);
+}
+
+.viewer-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.viewer-controls button {
+    background: var(--ctp-mocha-surface0);
+    color: var(--ctp-mocha-text);
+    border: 1px solid var(--ctp-mocha-overlay0);
+    border-radius: 4px;
+    padding: 6px 14px;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.viewer-controls button:hover {
+    background: var(--ctp-mocha-surface1);
+}
+
+#viewer-canvas {
+    max-width: 100%;
+    height: auto;
+    border: 1px solid var(--ctp-mocha-surface2);
+}

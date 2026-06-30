@@ -2,7 +2,7 @@ import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 import { load as loadNpy } from "https://esm.sh/npyjs";
 
 // --- Data structures ---
-// Map: sampleKey -> { label, sample, correlations: number[] }
+// Map: sampleKey -> { label, sample, correlations: number[], files: File[] }
 let sampleData = new Map();
 
 // --- .npy loading & correlation ---
@@ -48,7 +48,7 @@ async function processFiles(files) {
         const key = `${label}/${sample}`;
 
         if (!sampleData.has(key)) {
-            sampleData.set(key, { label, sample, correlations: [] });
+            sampleData.set(key, { label, sample, correlations: [], files: [] });
         }
 
         try {
@@ -57,6 +57,7 @@ async function processFiles(files) {
             if (shape.length === 5 && shape[1] >= 3) {
                 const r = computeCorrelation(data, shape);
                 sampleData.get(key).correlations.push(r);
+                sampleData.get(key).files.push(file);
             }
         } catch (e) {
             console.warn(`Failed to parse ${file.name}:`, e);
@@ -187,6 +188,8 @@ function updateChart() {
         .attr("height", d => Math.abs(y(0) - y(d.mean)))
         .attr("fill", d => color(d.label))
         .attr("opacity", 0.8)
+        .style("cursor", "pointer")
+        .on("click", (event, d) => openViewer(d.key))
       .merge(bars).transition()
         .attr("x", d => x(d.key))
         .attr("width", x.bandwidth())
@@ -248,6 +251,75 @@ function updateChart() {
             .attr("font-size", "11px")
             .text(l);
     });
+}
+
+// --- Image Viewer ---
+
+let viewerState = { key: null, index: 0 };
+
+const viewerEl = document.getElementById("image-viewer");
+const viewerTitle = document.getElementById("viewer-title");
+const viewerIndex = document.getElementById("viewer-index");
+const canvas = document.getElementById("viewer-canvas");
+const ctx = canvas.getContext("2d");
+
+document.getElementById("prev-btn").addEventListener("click", () => {
+    const files = sampleData.get(viewerState.key).files;
+    viewerState.index = (viewerState.index - 1 + files.length) % files.length;
+    renderViewerImage();
+});
+
+document.getElementById("next-btn").addEventListener("click", () => {
+    const files = sampleData.get(viewerState.key).files;
+    viewerState.index = (viewerState.index + 1) % files.length;
+    renderViewerImage();
+});
+
+function openViewer(sampleKey) {
+    viewerState.key = sampleKey;
+    viewerState.index = 0;
+    viewerEl.style.display = "block";
+    renderViewerImage();
+}
+
+async function renderViewerImage() {
+    const sample = sampleData.get(viewerState.key);
+    const file = sample.files[viewerState.index];
+    viewerTitle.textContent = `${viewerState.key} — ${file.name}`;
+    viewerIndex.textContent = `${viewerState.index + 1} / ${sample.files.length}`;
+
+    const buffer = await file.arrayBuffer();
+    const { data, shape } = await loadNpy(buffer);
+
+    const H = shape[3];
+    const W = shape[4];
+    const planeSize = H * W;
+
+    canvas.width = W;
+    canvas.height = H;
+
+    // Render channels 1, 2, 3 as RGB (skip channel 0 which is DAPI/background)
+    const imgData = ctx.createImageData(W, H);
+    const ch1 = data.slice(1 * planeSize, 2 * planeSize);
+    const ch2 = data.slice(2 * planeSize, 3 * planeSize);
+    const ch3 = data.slice(3 * planeSize, 4 * planeSize);
+
+    // Find max per channel for normalization
+    let max1 = 0, max2 = 0, max3 = 0;
+    for (let i = 0; i < planeSize; i++) {
+        if (ch1[i] > max1) max1 = ch1[i];
+        if (ch2[i] > max2) max2 = ch2[i];
+        if (ch3[i] > max3) max3 = ch3[i];
+    }
+
+    for (let i = 0; i < planeSize; i++) {
+        imgData.data[i * 4]     = (ch1[i] / max1) * 255;  // R
+        imgData.data[i * 4 + 1] = (ch2[i] / max2) * 255;  // G
+        imgData.data[i * 4 + 2] = (ch3[i] / max3) * 255;  // B
+        imgData.data[i * 4 + 3] = 255;                     // A
+    }
+
+    ctx.putImageData(imgData, 0, 0);
 }
 
 // --- Wire up file picker ---
