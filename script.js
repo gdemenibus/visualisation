@@ -24,15 +24,21 @@ function pearsonR(x, y) {
 }
 
 function computeFilteredCorrelation(ch1, ch2, thresh1, thresh2) {
-    const filteredX = [];
-    const filteredY = [];
+    let n = 0, sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
     for (let i = 0; i < ch1.length; i++) {
-        // Exclude pixels where BOTH channels are below their threshold
         if (ch1[i] < thresh1 && ch2[i] < thresh2) continue;
-        filteredX.push(ch1[i]);
-        filteredY.push(ch2[i]);
+        const x = ch1[i], y = ch2[i];
+        n++;
+        sumX += x;
+        sumY += y;
+        sumXY += x * y;
+        sumX2 += x * x;
+        sumY2 += y * y;
     }
-    return pearsonR(filteredX, filteredY);
+    if (n < 2) return NaN;
+    const num = n * sumXY - sumX * sumY;
+    const den = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
+    return den === 0 ? 0 : num / den;
 }
 
 function getFilterThresholds() {
@@ -407,14 +413,15 @@ document.querySelectorAll('input[name="group-mode"]').forEach(radio => {
     radio.addEventListener("change", updateChart);
 });
 
-// --- Wire up filter sliders ---
+// --- Wire up filter sliders (debounced) ---
 
-document.getElementById("filter-ch1").addEventListener("input", (e) => {
-    document.getElementById("filter-ch1-val").textContent = e.target.value;
-    updateChart();
-});
+let filterTimeout = null;
+function onFilterChange() {
+    document.getElementById("filter-ch1-val").textContent = document.getElementById("filter-ch1").value;
+    document.getElementById("filter-ch2-val").textContent = document.getElementById("filter-ch2").value;
+    clearTimeout(filterTimeout);
+    filterTimeout = setTimeout(updateChart, 150);
+}
 
-document.getElementById("filter-ch2").addEventListener("input", (e) => {
-    document.getElementById("filter-ch2-val").textContent = e.target.value;
-    updateChart();
-});
+document.getElementById("filter-ch1").addEventListener("input", onFilterChange);
+document.getElementById("filter-ch2").addEventListener("input", onFilterChange);
