@@ -373,6 +373,20 @@ async function renderViewerImage() {
     const W = shape[4];
     const planeSize = H * W;
 
+    const showFiltered = document.getElementById("show-filtered").checked;
+    const { ch1: thresh1, ch2: thresh2 } = getFilterThresholds();
+
+    // Precompute filter mask (pixels where BOTH ch1 and ch2 are below threshold)
+    let filterMask = null;
+    if (showFiltered) {
+        const planeCh1 = data.slice(1 * planeSize, 2 * planeSize);
+        const planeCh2 = data.slice(2 * planeSize, 3 * planeSize);
+        filterMask = new Uint8Array(planeSize);
+        for (let i = 0; i < planeSize; i++) {
+            if (planeCh1[i] < thresh1 && planeCh2[i] < thresh2) filterMask[i] = 1;
+        }
+    }
+
     for (let ch = 0; ch < 4; ch++) {
         const cvs = canvases[ch];
         cvs.width = W;
@@ -390,10 +404,17 @@ async function renderViewerImage() {
         if (max === 0) max = 1;
 
         for (let i = 0; i < planeSize; i++) {
-            const v = (plane[i] / max) * 255;
-            imgData.data[i * 4]     = v * cr;
-            imgData.data[i * 4 + 1] = v * cg;
-            imgData.data[i * 4 + 2] = v * cb;
+            if (filterMask && filterMask[i]) {
+                // Yellow for filtered pixels
+                imgData.data[i * 4]     = 255;
+                imgData.data[i * 4 + 1] = 220;
+                imgData.data[i * 4 + 2] = 0;
+            } else {
+                const v = (plane[i] / max) * 255;
+                imgData.data[i * 4]     = v * cr;
+                imgData.data[i * 4 + 1] = v * cg;
+                imgData.data[i * 4 + 2] = v * cb;
+            }
             imgData.data[i * 4 + 3] = 255;
         }
 
@@ -420,8 +441,66 @@ function onFilterChange() {
     document.getElementById("filter-ch1-val").textContent = document.getElementById("filter-ch1").value;
     document.getElementById("filter-ch2-val").textContent = document.getElementById("filter-ch2").value;
     clearTimeout(filterTimeout);
-    filterTimeout = setTimeout(updateChart, 150);
+    filterTimeout = setTimeout(() => {
+        updateChart();
+        if (viewerEl.style.display !== "none") renderViewerImage();
+    }, 150);
 }
 
 document.getElementById("filter-ch1").addEventListener("input", onFilterChange);
 document.getElementById("filter-ch2").addEventListener("input", onFilterChange);
+
+// --- Double-click to manually edit threshold values ---
+
+function makeEditable(spanId, sliderId) {
+    const span = document.getElementById(spanId);
+    const slider = document.getElementById(sliderId);
+
+    span.style.cursor = "pointer";
+    span.title = "Double-click to edit";
+
+    span.addEventListener("dblclick", () => {
+        const current = span.textContent;
+        const input = document.createElement("input");
+        input.type = "number";
+        input.value = current;
+        input.min = slider.min;
+        input.max = slider.max;
+        input.style.width = "60px";
+        span.replaceWith(input);
+        input.focus();
+        input.select();
+
+        function commit() {
+            let val = parseFloat(input.value) || 0;
+            val = Math.max(parseFloat(slider.min), Math.min(parseFloat(slider.max), val));
+            slider.value = val;
+            const newSpan = document.createElement("span");
+            newSpan.id = spanId;
+            newSpan.textContent = val;
+            newSpan.style.cursor = "pointer";
+            newSpan.title = "Double-click to edit";
+            input.replaceWith(newSpan);
+            makeEditable(spanId, sliderId);
+            onFilterChange();
+        }
+
+        input.addEventListener("blur", commit);
+        input.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") input.blur();
+            if (e.key === "Escape") {
+                input.value = current;
+                input.blur();
+            }
+        });
+    });
+}
+
+makeEditable("filter-ch1-val", "filter-ch1");
+makeEditable("filter-ch2-val", "filter-ch2");
+
+// --- Wire up filter highlight toggle ---
+
+document.getElementById("show-filtered").addEventListener("change", () => {
+    if (viewerEl.style.display !== "none") renderViewerImage();
+});
