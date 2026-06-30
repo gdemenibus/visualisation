@@ -201,6 +201,23 @@ dt::after {
     gap: 16px;
 }
 
+.filter-controls {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 12px;
+}
+
+.filter-slider {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.filter-slider label {
+    font-size: 12px;
+    color: var(--ctp-mocha-subtext0);
+}
+
 .view-toggle label {
     cursor: pointer;
 }

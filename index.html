@@ -20,6 +20,16 @@
             <label><input type="radio" name="group-mode" value="sample" checked /> By Sample</label>
             <label><input type="radio" name="group-mode" value="label" /> By Label</label>
         </div>
+        <div class="filter-controls">
+            <div class="filter-slider">
+                <label>Ch1 min threshold: <span id="filter-ch1-val">0</span></label>
+                <input type="range" id="filter-ch1" class="slider" min="0" max="10000" step="10" value="0" />
+            </div>
+            <div class="filter-slider">
+                <label>Ch2 min threshold: <span id="filter-ch2-val">0</span></label>
+                <input type="range" id="filter-ch2" class="slider" min="0" max="2000" step="5" value="0" />
+            </div>
+        </div>
     </div>
 
 

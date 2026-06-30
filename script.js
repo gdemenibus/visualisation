@@ -2,13 +2,14 @@ import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 import { load as loadNpy } from "https://esm.sh/npyjs";
 
 // --- Data structures ---
-// Map: sampleKey -> { label, sample, correlations: number[], files: File[] }
+// Map: sampleKey -> { label, sample, channels: {ch1: TypedArray, ch2: TypedArray}[], files: File[] }
 let sampleData = new Map();
 
 // --- .npy loading & correlation ---
 
 function pearsonR(x, y) {
     const n = x.length;
+    if (n < 2) return NaN;
     let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
     for (let i = 0; i < n; i++) {
         sumX += x[i];
@@ -22,16 +23,23 @@ function pearsonR(x, y) {
     return den === 0 ? 0 : num / den;
 }
 
-function computeCorrelation(data, shape) {
-    // shape: (1, 4, 1, H, W)
-    const H = shape[3];
-    const W = shape[4];
-    const planeSize = H * W;
+function computeFilteredCorrelation(ch1, ch2, thresh1, thresh2) {
+    const filteredX = [];
+    const filteredY = [];
+    for (let i = 0; i < ch1.length; i++) {
+        // Exclude pixels where BOTH channels are below their threshold
+        if (ch1[i] < thresh1 && ch2[i] < thresh2) continue;
+        filteredX.push(ch1[i]);
+        filteredY.push(ch2[i]);
+    }
+    return pearsonR(filteredX, filteredY);
+}
 
-    const ch1 = data.slice(1 * planeSize, 2 * planeSize);
-    const ch2 = data.slice(2 * planeSize, 3 * planeSize);
-
-    return pearsonR(ch1, ch2);
+function getFilterThresholds() {
+    return {
+        ch1: parseFloat(document.getElementById("filter-ch1").value),
+        ch2: parseFloat(document.getElementById("filter-ch2").value),
+    };
 }
 
 async function processFiles(files) {
@@ -41,22 +49,25 @@ async function processFiles(files) {
 
     for (const file of npyFiles) {
         const parts = file.webkitRelativePath.split("/");
-        // parts: [rootFolder, label, sample, filename]
         if (parts.length < 4) continue;
         const label = parts[1];
         const sample = parts[2];
         const key = `${label}/${sample}`;
 
         if (!sampleData.has(key)) {
-            sampleData.set(key, { label, sample, correlations: [], files: [] });
+            sampleData.set(key, { label, sample, channels: [], files: [] });
         }
 
         try {
             const buffer = await file.arrayBuffer();
             const { data, shape } = await loadNpy(buffer);
             if (shape.length === 5 && shape[1] >= 3) {
-                const r = computeCorrelation(data, shape);
-                sampleData.get(key).correlations.push(r);
+                const H = shape[3];
+                const W = shape[4];
+                const planeSize = H * W;
+                const ch1 = data.slice(1 * planeSize, 2 * planeSize);
+                const ch2 = data.slice(2 * planeSize, 3 * planeSize);
+                sampleData.get(key).channels.push({ ch1, ch2 });
                 sampleData.get(key).files.push(file);
             }
         } catch (e) {
@@ -93,7 +104,7 @@ function buildSampleSelector() {
             cb.checked = true;
             cb.value = `${s.label}/${s.sample}`;
             cb.addEventListener("change", updateChart);
-            lbl.append(cb, ` ${s.sample} (n=${s.correlations.length})`);
+            lbl.append(cb, ` ${s.sample} (n=${s.channels.length})`);
             children.appendChild(lbl);
             children.appendChild(document.createElement("br"));
         }
@@ -139,15 +150,47 @@ svg.append("text")
     .attr("font-size", "12px")
     .text("Pearson r");
 
+function getGroupMode() {
+    return document.querySelector('input[name="group-mode"]:checked')?.value || "sample";
+}
+
+function computeCorrelationsForSample(sampleEntry) {
+    const { ch1: thresh1, ch2: thresh2 } = getFilterThresholds();
+    return sampleEntry.channels.map(({ ch1, ch2 }) =>
+        computeFilteredCorrelation(ch1, ch2, thresh1, thresh2)
+    ).filter(r => !isNaN(r));
+}
+
 function getSelectedData() {
     const checkboxes = document.querySelectorAll('#file-selector input[type="checkbox"]:checked');
     const keys = Array.from(checkboxes).map(cb => cb.value);
-    return keys.map(k => {
+
+    const mode = getGroupMode();
+
+    if (mode === "sample") {
+        return keys.map(k => {
+            const d = sampleData.get(k);
+            const corrs = computeCorrelationsForSample(d);
+            const mean = d3.mean(corrs) || 0;
+            const std = d3.deviation(corrs) || 0;
+            return { key: k, label: d.label, sample: d.sample, mean, std, n: corrs.length };
+        });
+    }
+
+    const labelMap = new Map();
+    for (const k of keys) {
         const d = sampleData.get(k);
-        const mean = d3.mean(d.correlations);
-        const std = d3.deviation(d.correlations) || 0;
-        return { key: k, label: d.label, sample: d.sample, mean, std, n: d.correlations.length };
-    });
+        if (!labelMap.has(d.label)) labelMap.set(d.label, []);
+        labelMap.get(d.label).push(...computeCorrelationsForSample(d));
+    }
+    return Array.from(labelMap, ([label, corrs]) => ({
+        key: label,
+        label,
+        sample: label,
+        mean: d3.mean(corrs) || 0,
+        std: d3.deviation(corrs) || 0,
+        n: corrs.length,
+    }));
 }
 
 function updateChart() {
@@ -170,8 +213,9 @@ function updateChart() {
         .domain([...new Set(data.map(d => d.label))]);
 
     // Axes
+    const mode = getGroupMode();
     xAxisG.transition().call(
-        d3.axisBottom(x).tickFormat(d => d.split("/")[1])
+        d3.axisBottom(x).tickFormat(d => mode === "label" ? d : d.split("/")[1])
     ).selectAll("text")
         .attr("transform", "rotate(-40)")
         .style("text-anchor", "end");
@@ -255,38 +299,66 @@ function updateChart() {
 
 // --- Image Viewer ---
 
-let viewerState = { key: null, index: 0 };
+let viewerState = { title: null, files: [], index: 0 };
 
 const viewerEl = document.getElementById("image-viewer");
 const viewerTitle = document.getElementById("viewer-title");
 const viewerIndex = document.getElementById("viewer-index");
-const canvas = document.getElementById("viewer-canvas");
-const ctx = canvas.getContext("2d");
+
+const canvases = [
+    document.getElementById("canvas-ch1"),
+    document.getElementById("canvas-ch2"),
+    document.getElementById("canvas-ch3"),
+    document.getElementById("canvas-ch4"),
+];
+
+// Channel colors: ch1=red, ch2=green, ch3=blue, ch4=white
+const channelColors = [
+    [1, 0, 0],
+    [0, 1, 0],
+    [0, 0, 1],
+    [1, 1, 1],
+];
 
 document.getElementById("prev-btn").addEventListener("click", () => {
-    const files = sampleData.get(viewerState.key).files;
-    viewerState.index = (viewerState.index - 1 + files.length) % files.length;
+    viewerState.index = (viewerState.index - 1 + viewerState.files.length) % viewerState.files.length;
     renderViewerImage();
 });
 
 document.getElementById("next-btn").addEventListener("click", () => {
-    const files = sampleData.get(viewerState.key).files;
-    viewerState.index = (viewerState.index + 1) % files.length;
+    viewerState.index = (viewerState.index + 1) % viewerState.files.length;
     renderViewerImage();
 });
 
-function openViewer(sampleKey) {
-    viewerState.key = sampleKey;
+function getFilesForKey(key) {
+    const mode = getGroupMode();
+    if (mode === "sample") {
+        return sampleData.get(key)?.files || [];
+    }
+    const checkboxes = document.querySelectorAll('#file-selector input[type="checkbox"]:checked');
+    const checkedKeys = Array.from(checkboxes).map(cb => cb.value);
+    const files = [];
+    for (const k of checkedKeys) {
+        const d = sampleData.get(k);
+        if (d && d.label === key) files.push(...d.files);
+    }
+    return files;
+}
+
+function openViewer(key) {
+    const files = getFilesForKey(key);
+    if (files.length === 0) return;
+    viewerState.title = key;
+    viewerState.files = files;
     viewerState.index = 0;
     viewerEl.style.display = "block";
     renderViewerImage();
 }
 
 async function renderViewerImage() {
-    const sample = sampleData.get(viewerState.key);
-    const file = sample.files[viewerState.index];
-    viewerTitle.textContent = `${viewerState.key} — ${file.name}`;
-    viewerIndex.textContent = `${viewerState.index + 1} / ${sample.files.length}`;
+    const file = viewerState.files[viewerState.index];
+    viewerTitle.textContent = `${viewerState.title} — ${file.name}`;
+    viewerIndex.textContent = `${viewerState.index + 1} / ${viewerState.files.length}`;
 
     const buffer = await file.arrayBuffer();
     const { data, shape } = await loadNpy(buffer);
@@ -295,35 +367,54 @@ async function renderViewerImage() {
     const W = shape[4];
     const planeSize = H * W;
 
-    canvas.width = W;
-    canvas.height = H;
+    for (let ch = 0; ch < 4; ch++) {
+        const cvs = canvases[ch];
+        cvs.width = W;
+        cvs.height = H;
+        const ctxCh = cvs.getContext("2d");
+        const imgData = ctxCh.createImageData(W, H);
 
-    // Render channels 1, 2, 3 as RGB (skip channel 0 which is DAPI/background)
-    const imgData = ctx.createImageData(W, H);
-    const ch1 = data.slice(1 * planeSize, 2 * planeSize);
-    const ch2 = data.slice(2 * planeSize, 3 * planeSize);
-    const ch3 = data.slice(3 * planeSize, 4 * planeSize);
+        const plane = data.slice(ch * planeSize, (ch + 1) * planeSize);
+        const [cr, cg, cb] = channelColors[ch];
 
-    // Find max per channel for normalization
-    let max1 = 0, max2 = 0, max3 = 0;
-    for (let i = 0; i < planeSize; i++) {
-        if (ch1[i] > max1) max1 = ch1[i];
-        if (ch2[i] > max2) max2 = ch2[i];
-        if (ch3[i] > max3) max3 = ch3[i];
+        let max = 0;
+        for (let i = 0; i < planeSize; i++) {
+            if (plane[i] > max) max = plane[i];
+        }
+        if (max === 0) max = 1;
+
+        for (let i = 0; i < planeSize; i++) {
+            const v = (plane[i] / max) * 255;
+            imgData.data[i * 4]     = v * cr;
+            imgData.data[i * 4 + 1] = v * cg;
+            imgData.data[i * 4 + 2] = v * cb;
+            imgData.data[i * 4 + 3] = 255;
+        }
+
+        ctxCh.putImageData(imgData, 0, 0);
     }
-
-    for (let i = 0; i < planeSize; i++) {
-        imgData.data[i * 4]     = (ch1[i] / max1) * 255;  // R
-        imgData.data[i * 4 + 1] = (ch2[i] / max2) * 255;  // G
-        imgData.data[i * 4 + 2] = (ch3[i] / max3) * 255;  // B
-        imgData.data[i * 4 + 3] = 255;                     // A
-    }
-
-    ctx.putImageData(imgData, 0, 0);
 }
 
 // --- Wire up file picker ---
 
 document.getElementById("file-picker").addEventListener("change", (event) => {
     processFiles(event.target.files);
+});
+
+// --- Wire up group mode toggle ---
+
+document.querySelectorAll('input[name="group-mode"]').forEach(radio => {
+    radio.addEventListener("change", updateChart);
+});
+
+// --- Wire up filter sliders ---
+
+document.getElementById("filter-ch1").addEventListener("input", (e) => {
+    document.getElementById("filter-ch1-val").textContent = e.target.value;
+    updateChart();
+});
+
+document.getElementById("filter-ch2").addEventListener("input", (e) => {
+    document.getElementById("filter-ch2-val").textContent = e.target.value;
+    updateChart();
 });
