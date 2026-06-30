@@ -270,3 +270,12 @@ dt::after {
     height: auto;
     border: 1px solid var(--ctp-mocha-surface2);
 }
+
+#scatter-container {
+    margin-top: 20px;
+}
+
+#scatter-container h4 {
+    margin: 0 0 8px 0;
+    color: var(--ctp-mocha-subtext0);
+}

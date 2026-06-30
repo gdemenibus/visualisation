@@ -376,16 +376,20 @@ async function renderViewerImage() {
     const showFiltered = document.getElementById("show-filtered").checked;
     const { ch1: thresh1, ch2: thresh2 } = getFilterThresholds();
 
+    const planeCh1 = data.slice(1 * planeSize, 2 * planeSize);
+    const planeCh2 = data.slice(2 * planeSize, 3 * planeSize);
+
     // Precompute filter mask (pixels where BOTH ch1 and ch2 are below threshold)
     let filterMask = null;
     if (showFiltered) {
-        const planeCh1 = data.slice(1 * planeSize, 2 * planeSize);
-        const planeCh2 = data.slice(2 * planeSize, 3 * planeSize);
         filterMask = new Uint8Array(planeSize);
         for (let i = 0; i < planeSize; i++) {
             if (planeCh1[i] < thresh1 && planeCh2[i] < thresh2) filterMask[i] = 1;
         }
     }
+
+    // Update scatter plot
+    renderScatter(planeCh1, planeCh2, thresh1, thresh2);
 
     for (let ch = 0; ch < 4; ch++) {
         const cvs = canvases[ch];
@@ -420,6 +424,78 @@ async function renderViewerImage() {
 
         ctxCh.putImageData(imgData, 0, 0);
     }
+}
+
+// --- Scatter Plot (Ch1 vs Ch2) ---
+
+const scatterMargin = { top: 20, right: 20, bottom: 40, left: 50 };
+const scatterWidth = 500;
+const scatterHeight = 400;
+const MAX_SCATTER_POINTS = 5000;
+
+const scatterSvg = d3.select("#scatter-plot")
+    .attr("width", scatterWidth)
+    .attr("height", scatterHeight);
+
+const scatterG = scatterSvg.append("g")
+    .attr("transform", `translate(${scatterMargin.left},${scatterMargin.top})`);
+
+const scatterXAxisG = scatterG.append("g")
+    .attr("transform", `translate(0,${scatterHeight - scatterMargin.top - scatterMargin.bottom})`);
+const scatterYAxisG = scatterG.append("g");
+
+scatterSvg.append("text")
+    .attr("x", scatterWidth / 2)
+    .attr("y", scatterHeight - 4)
+    .attr("text-anchor", "middle")
+    .attr("fill", "var(--ctp-mocha-text)")
+    .attr("font-size", "11px")
+    .text("Channel 1");
+
+scatterSvg.append("text")
+    .attr("transform", "rotate(-90)")
+    .attr("x", -(scatterHeight / 2))
+    .attr("y", 14)
+    .attr("text-anchor", "middle")
+    .attr("fill", "var(--ctp-mocha-text)")
+    .attr("font-size", "11px")
+    .text("Channel 2");
+
+function renderScatter(dataCh1, dataCh2, thresh1, thresh2) {
+    const innerW = scatterWidth - scatterMargin.left - scatterMargin.right;
+    const innerH = scatterHeight - scatterMargin.top - scatterMargin.bottom;
+    const planeSize = dataCh1.length;
+
+    // Downsample: pick evenly spaced indices
+    const step = Math.max(1, Math.floor(planeSize / MAX_SCATTER_POINTS));
+    const points = [];
+    for (let i = 0; i < planeSize; i += step) {
+        const filtered = dataCh1[i] < thresh1 && dataCh2[i] < thresh2;
+        points.push({ x: dataCh1[i], y: dataCh2[i], filtered });
+    }
+
+    const xMax = d3.max(points, p => p.x) || 1;
+    const yMax = d3.max(points, p => p.y) || 1;
+
+    const x = d3.scaleLinear().domain([0, xMax]).range([0, innerW]);
+    const y = d3.scaleLinear().domain([0, yMax]).range([innerH, 0]);
+
+    scatterXAxisG.call(d3.axisBottom(x).ticks(6));
+    scatterYAxisG.call(d3.axisLeft(y).ticks(6));
+
+    // Draw filtered points first (behind), then included points on top
+    const sorted = points.sort((a, b) => b.filtered - a.filtered);
+
+    const dots = scatterG.selectAll(".dot").data(sorted);
+    dots.enter().append("circle")
+        .attr("class", "dot")
+        .attr("r", 1.5)
+        .attr("opacity", 0.5)
+      .merge(dots)
+        .attr("cx", d => x(d.x))
+        .attr("cy", d => y(d.y))
+        .attr("fill", d => d.filtered ? "#ffdc00" : "#4a9eff");
+    dots.exit().remove();
 }
 
 // --- Wire up file picker ---
